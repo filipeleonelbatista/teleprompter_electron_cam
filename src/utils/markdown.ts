@@ -1,9 +1,18 @@
-// Markdown parser for preview - NO sanitization (for presentation only)
+/**
+ * Markdown utilities for Teleprompter
+ * 
+ * - sanitizeInput: Sanitizes raw user input for storage (prevents XSS)
+ * - parseMarkdown: Parses markdown to HTML for preview display
+ */
+
 import DOMPurify from 'dompurify'
 
 /**
  * Sanitize raw user input to prevent XSS when storing/editing text
- * Used for the text input/editor
+ * Used for the text input/editor before saving to localStorage
+ * 
+ * @param text - Raw user input
+ * @returns Sanitized text with all HTML removed
  */
 export function sanitizeInput(text: string): string {
   return DOMPurify.sanitize(text, {
@@ -14,8 +23,14 @@ export function sanitizeInput(text: string): string {
 
 /**
  * Parse markdown to HTML for preview display
- * NO sanitization - only for presentation (overlay)
- * The input is already escaped, and it's a controlled presentation
+ * 
+ * IMPORTANT: This function is for PREVIEW ONLY. It escapes HTML to prevent XSS
+ * but does NOT sanitize the input - it assumes the text has already been
+ * sanitized via sanitizeInput() when stored, or comes from trusted markdown.
+ * 
+ * @param text - Markdown text to parse
+ * @param theme - 'dark' or 'light' theme
+ * @returns HTML string for display
  */
 export function parseMarkdown(text: string, theme: 'dark' | 'light' = 'dark'): string {
   if (!text || !text.trim()) return ''
@@ -55,7 +70,7 @@ export function parseMarkdown(text: string, theme: 'dark' | 'light' = 'dark'): s
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i]
     
-    // Handle code blocks
+    // Handle code blocks FIRST (before any escaping)
     if (line.startsWith('```')) {
       if (inCodeBlock) {
         html += `<pre class="${colors.codeBlock} p-3 rounded my-2 overflow-x-auto"><code class="${colors.codeBlockText} text-sm">${escapeHtml(codeContent)}</code></pre>`
@@ -73,51 +88,50 @@ export function parseMarkdown(text: string, theme: 'dark' | 'light' = 'dark'): s
       continue
     }
 
-    // Escape HTML to prevent XSS - we only allow markdown syntax
-    line = escapeHtml(line)
-
-    // Headers (must be at start of line)
+    // Process markdown elements BEFORE escaping
+    
+    // Headers (check on original line before escaping)
     if (line.match(/^###### /)) {
-      html += `<h6 class="text-sm font-bold ${colors.heading} mt-3 mb-1">${line.substring(7)}</h6>\n`
+      html += `<h6 class="text-sm font-bold ${colors.heading} mt-3 mb-1">${escapeHtml(line.substring(7))}</h6>\n`
       continue
     }
     if (line.match(/^##### /)) {
-      html += `<h5 class="text-base font-bold ${colors.heading} mt-3 mb-1">${line.substring(6)}</h5>\n`
+      html += `<h5 class="text-base font-bold ${colors.heading} mt-3 mb-1">${escapeHtml(line.substring(6))}</h5>\n`
       continue
     }
     if (line.match(/^#### /)) {
-      html += `<h4 class="text-lg font-bold ${colors.heading} mt-3 mb-1">${line.substring(5)}</h4>\n`
+      html += `<h4 class="text-lg font-bold ${colors.heading} mt-3 mb-1">${escapeHtml(line.substring(5))}</h4>\n`
       continue
     }
     if (line.match(/^### /)) {
-      html += `<h3 class="text-xl font-bold ${colors.heading} mt-4 mb-2">${line.substring(4)}</h3>\n`
+      html += `<h3 class="text-xl font-bold ${colors.heading} mt-4 mb-2">${escapeHtml(line.substring(4))}</h3>\n`
       continue
     }
     if (line.match(/^## /)) {
-      html += `<h2 class="text-2xl font-bold ${colors.heading} mt-4 mb-2">${line.substring(3)}</h2>\n`
+      html += `<h2 class="text-2xl font-bold ${colors.heading} mt-4 mb-2">${escapeHtml(line.substring(3))}</h2>\n`
       continue
     }
     if (line.match(/^# /)) {
-      html += `<h1 class="text-3xl font-bold ${colors.heading} mt-4 mb-2">${line.substring(2)}</h1>\n`
+      html += `<h1 class="text-3xl font-bold ${colors.heading} mt-4 mb-2">${escapeHtml(line.substring(2))}</h1>\n`
       continue
     }
 
-    // Horizontal rules
+    // Horizontal rules (check on original line)
     if (line.match(/^---+$/) || line.match(/^\*\*\*+$/)) {
       html += `<hr class="${colors.hr} my-4" />\n`
       continue
     }
 
-    // Blockquotes (citations)
-    if (line.startsWith('&gt; ')) {
-      html += `<blockquote class="border-l-4 ${colors.blockquote} pl-4 py-1 my-2 italic rounded-r">${line.substring(5)}</blockquote>\n`
+    // Blockquotes (check on original line - before escaping!)
+    if (line.startsWith('> ')) {
+      html += `<blockquote class="border-l-4 ${colors.blockquote} pl-4 py-1 my-2 italic rounded-r">${escapeHtml(line.substring(2))}</blockquote>\n`
       continue
     }
 
     // Task list - checked [x] or [X]
     if (line.match(/^-\s*\[[xX]\]\s*/)) {
       const task = line.replace(/^-\s*\[[xX]\]\s*/, '')
-      html += `<div class="flex items-center gap-2 my-1"><label class="relative flex items-center cursor-not-allowed"><input type="checkbox" checked disabled class="peer sr-only" /><div class="w-5 h-5 rounded border-2 border-blue-500 bg-blue-500 flex items-center justify-center text-white"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></div></label><span class="${colors.text}">${task}</span></div>\n`
+      html += `<div class="flex items-center gap-2 my-1"><label class="relative flex items-center cursor-not-allowed"><input type="checkbox" checked disabled class="peer sr-only" /><div class="w-5 h-5 rounded border-2 border-blue-500 bg-blue-500 flex items-center justify-center text-white"><svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></div></label><span class="${colors.text}">${escapeHtml(task)}</span></div>\n`
       continue
     }
 
@@ -125,24 +139,27 @@ export function parseMarkdown(text: string, theme: 'dark' | 'light' = 'dark'): s
     if (line.match(/^-\s*\[\s*\]\s*/)) {
       const task = line.replace(/^-\s*\[\s*\]\s*/, '')
       const borderColor = theme === 'dark' ? 'border-zinc-500' : 'border-gray-400'
-      html += `<div class="flex items-center gap-2 my-1"><label class="relative flex items-center cursor-not-allowed"><input type="checkbox" disabled class="peer sr-only" /><div class="w-5 h-5 rounded border-2 ${borderColor} bg-transparent flex items-center justify-center"></div></label><span class="${colors.text}">${task}</span></div>\n`
+      html += `<div class="flex items-center gap-2 my-1"><label class="relative flex items-center cursor-not-allowed"><input type="checkbox" disabled class="peer sr-only" /><div class="w-5 h-5 rounded border-2 ${borderColor} bg-transparent flex items-center justify-center"></div></label><span class="${colors.text}">${escapeHtml(task)}</span></div>\n`
       continue
     }
 
-    // Unordered lists
+    // Unordered lists (check on original line)
     if (line.match(/^- /)) {
-      html += `<li class="${colors.text} ml-4 list-disc">${line.substring(2)}</li>\n`
+      html += `<li class="${colors.text} ml-4 list-disc">${escapeHtml(line.substring(2))}</li>\n`
       continue
     }
 
-    // Ordered lists
+    // Ordered lists (check on original line)
     if (line.match(/^\d+\. /)) {
       const match = line.match(/^(\d+)\. (.*)$/)
       if (match) {
-        html += `<li class="${colors.text} ml-4 list-decimal">${match[2]}</li>\n`
+        html += `<li class="${colors.text} ml-4 list-decimal">${escapeHtml(match[2])}</li>\n`
         continue
       }
     }
+
+    // For regular text, escape HTML first, then parse inline markdown
+    line = escapeHtml(line)
 
     // Inline code (backticks are already escaped, need to unescape for display)
     const codeBg = theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-200'
@@ -179,11 +196,12 @@ export function parseMarkdown(text: string, theme: 'dark' | 'light' = 'dark'): s
     }
   }
 
-  // NO sanitization for preview - just return the HTML
-  // The input is already escaped above, and this is for presentation only
   return html
 }
 
+/**
+ * Escape HTML special characters to prevent XSS
+ */
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')

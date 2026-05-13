@@ -1,2 +1,4 @@
 export { useTeleprompter } from './useTeleprompter'
-export type { UseTeleprompterReturn, TeleprompterSettings } from './useTeleprompter'
+export { useScrollAnimation } from './useScrollAnimation'
+export { useKeyboardShortcuts } from './useKeyboardShortcuts'
+export { useLocalStorage } from './useLocalStorage'
