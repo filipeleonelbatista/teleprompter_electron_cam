@@ -35,10 +35,17 @@ function createWindow(): void {
   mainWindow.setBackgroundColor('#00000000')
 
   // Hide from screen capture (OBS, screenshots, etc.)
-  // This Windows-specific API prevents content capture
+  // Platform-specific content protection
   if (process.platform === 'win32') {
+    // Windows: Use SetWindowDisplayAffinity (WDA_EXCLUDEFROMCAPTURE)
+    // Requires Electron 34.3.0 for proper functionality
+    mainWindow.setContentProtection(true)
+  } else if (process.platform === 'darwin') {
+    // macOS: Use CGWindowSetSharingType(kCGWindowSharingNone)
     mainWindow.setContentProtection(true)
   }
+  // Linux: No native API available for OBS capture exclusion
+  // Use Chroma Key filter in OBS as fallback (see OBS_SETUP_GUIDE below)
 
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
@@ -194,3 +201,34 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason)
 })
+
+/**
+ * OBS Setup Guide - Cross-Platform Capture Protection
+ * ====================================================
+ *
+ * WINDOWS 10/11:
+ * - setContentProtection(true) works automatically with Electron 34.3.0
+ * - Window will be invisible to OBS screen capture
+ *
+ * macOS:
+ * - setContentProtection(true) works automatically
+ * - Window will be invisible to OBS screen capture
+ *
+ * LINUX UBUNTU 22.04 LTS:
+ * - No native API available (Wayland/X11 limitation)
+ * - Use Chroma Key filter in OBS as fallback:
+ *
+ *   OBS Setup for Linux:
+ *   1. Add Window Capture source
+ *   2. Right-click on the source → Filters
+ *   3. Click "+" → Add "Chroma Key" filter
+ *   4. Configure:
+ *      - Key Color Type: Green
+ *      - Similarity: 400
+ *      - Smoothness: 80
+ *   5. Alternative: Use "Color Key" filter with a solid background color
+ *
+ *   For teleprompter transparency in OBS on Linux:
+ *   - Use a green screen background in the teleprompter
+ *   - Apply Chroma Key filter in OBS to remove green
+ */
